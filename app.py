@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (HATA YAKALAMA EKLEMESİ İLE)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (CHROMA DB SİLME HATASI GİDERİLDİ)
 # =================================================================================
 
 import streamlit as st
@@ -56,7 +56,7 @@ def setup_rag_components():
     chroma_client = Client(Settings(allow_reset=True))
     collection_name = "ai_ethics_manual_collection"
     
-    # Collection'ı temizle ve yeniden oluştur
+    # Collection'ı temizle ve yeniden oluştur (Hata oluşmaması için `get_or_create` yerine `delete_collection` kullanılır)
     try:
         chroma_client.delete_collection(name=collection_name)
     except:
@@ -185,8 +185,14 @@ def main():
 
         if st.button("Dokümanları İşle ve Kaydet"):
             if uploaded_files:
-                # Önce eski verileri temizle
-                collection.delete(where={}) 
+                # -----------------------------------------------------
+                # CHROMA SİLME HATASI DÜZELTİLMİŞTİR
+                # -----------------------------------------------------
+                collection.delete(where={
+                    "$and": [
+                        {"source": {"$ne": "non_existent_source"}}
+                    ]
+                }) 
                 
                 chunk_count = index_documents(uploaded_files, collection, text_splitter, embedding_function)
                 if chunk_count > 0:
