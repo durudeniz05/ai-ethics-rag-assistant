@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Kritik Hatalar Giderilmiş Nihai Sürüm)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM)
 # =================================================================================
 
 import streamlit as st
@@ -103,64 +103,3 @@ def index_documents(uploaded_files, collection, text_splitter, embedding_functio
 
     # 5. Chroma'ya Kaydetme (Vektörleri de ekleyerek)
     ids = [f"doc_{i}" for i in range(len(chunked_texts))]
-    
-    collection.add(
-        documents=chunked_texts,
-        embeddings=embeddings, 
-        metadatas=chunk_metadatas,
-        ids=ids
-    )
-    return len(chunked_texts)
-
-
-# --- 3. RAG Sorgulama Fonksiyonu ---
-
-def ask_rag_assistant(question, gemini_client, collection, embedding_function):
-    """RAG sorgusunu çalıştırır ve cevabı döndürür."""
-    try:
-        # A. Sorguyu Vektörleştirme
-        query_vector = embedding_function.embed_query(question)
-        
-        # B. Retrieval (Geri Getirme): Chroma DB'de arama
-        results = collection.query(
-            query_embeddings=[query_vector],
-            n_results=3  # En alakalı 3 parçayı getir
-        )
-        
-        retrieved_chunks = results['documents'][0]
-        retrieved_metadatas = results['metadatas'][0]
-        
-        # C. Generation (Cevap Üretme)
-        context = "\n---\n".join(retrieved_chunks)
-        system_prompt = (
-            "Sen bir Yapay Zeka Etiği ve Uyum asistanısın. Yalnızca sağlanan bağlamdaki bilgilere dayanarak yanıtla. "
-            "Eğer bağlamda bilgi yoksa 'Elimdeki dokümanlarda bu konuyla ilgili spesifik bilgi bulunmamaktadır.' diye cevap ver. "
-            "Cevabını kısa ve öz tut. Cevabın sonunda, kullanılan kaynağı '[Kaynak: Dosya Adı]' formatında belirt."
-        )
-        
-        full_prompt = f"{system_prompt}\n\nBağlam: {context}\n\nSoru: {question}\n\nCevap:"
-        
-        response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=full_prompt
-        )
-
-        source_files = list(set([m['source'] for m in retrieved_metadatas]))
-        final_answer = response.text
-        
-        if not any(source in final_answer for source in source_files):
-             final_answer += f" [Kaynak: {', '.join(source_files)}]"
-
-        return final_answer
-        
-    except APIError as e:
-        return f"API HATA: Gemini servisine erişim sağlanamadı. Detay: {e}"
-    except Exception as e:
-        return f"GENEL HATA: {e}"
-
-
-# =================================================================================
-# 4. STREAMLIT ANA FONKSİYON
-# =================================================================================
-
-def main():
