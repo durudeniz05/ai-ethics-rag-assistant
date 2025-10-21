@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB ARAYÜZÜ (AI ETHICS & COMPLIANCE)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (HATA YAKALAMA EKLEMESİ İLE)
 # =================================================================================
 
 import streamlit as st
@@ -10,7 +10,7 @@ import glob
 import tempfile
 import textwrap
 
-# RAG Bileşenleri (Önceki kararlarımızdan gelen modüller)
+# RAG Bileşenleri
 from google import genai
 from google.genai.errors import APIError
 from chromadb import Client, Settings
@@ -25,7 +25,7 @@ from langchain_community.document_loaders import PyPDFLoader
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except KeyError:
-    st.error("Lütfen Streamlit Secrets'ta GEMINI_API_KEY anahtarını ayarlayın.")
+    st.error("HATA: Streamlit Secrets'ta 'GEMINI_API_KEY' bulunamadı. Lütfen kontrol edin.")
     st.stop()
 
 
@@ -33,24 +33,30 @@ except KeyError:
 def setup_rag_components():
     """Gemini Client, Embedding Modeli, Text Splitter ve Chroma Collection'ı hazırlar."""
     
-    # 1. Gemini Client (LLM)
-    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-    
-    # 2. Embedding Modeli (Vektörleştirme)
-    embedding_model_name = "text-embedding-004"
-    embedding_function = GoogleGenerativeAIEmbeddings(
-        model=embedding_model_name,
-        api_key=GEMINI_API_KEY
-    )
-    
-    # 3. Metin Parçalayıcı
+    # 1. API Bağlantılarını Hata Yakalama İçinde Başlatma
+    try:
+        # Gemini Client (LLM)
+        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        # Embedding Modeli (Vektörleştirme)
+        embedding_model_name = "text-embedding-004"
+        embedding_function = GoogleGenerativeAIEmbeddings(
+            model=embedding_model_name,
+            api_key=GEMINI_API_KEY
+        )
+    except Exception as e:
+        # API bağlantısında bir hata olursa, ekranı çökertmek yerine mesaj gösterir
+        st.error(f"KRİTİK HATA: Gemini API Bağlantı Sorunu. Anahtarınızı ve Streamlit Secrets'ı kontrol edin. Detay: {e}")
+        st.stop()
+        
+    # 2. Metin Parçalayıcı
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     
-    # 4. Chroma Client (Vektör DB)
+    # 3. Chroma Client (Vektör DB)
     chroma_client = Client(Settings(allow_reset=True))
     collection_name = "ai_ethics_manual_collection"
     
-    # Collection'ı silip yeniden oluştur (Web uygulamasının temiz çalışması için)
+    # Collection'ı temizle ve yeniden oluştur
     try:
         chroma_client.delete_collection(name=collection_name)
     except:
@@ -71,12 +77,10 @@ def index_documents(uploaded_files, collection, text_splitter, embedding_functio
     
     with tempfile.TemporaryDirectory() as temp_dir:
         for uploaded_file in uploaded_files:
-            # Dosyayı geçici bir konuma kaydetme (PyPDFLoader için gerekli)
             temp_file_path = os.path.join(temp_dir, uploaded_file.name)
             with open(temp_file_path, "wb") as f:
                 f.write(uploaded_file.get_buffer())
             
-            # PDF'i yükle ve parçala
             loader = PyPDFLoader(temp_file_path)
             documents = loader.load()
             chunks = text_splitter.split_documents(documents)
@@ -90,9 +94,12 @@ def index_documents(uploaded_files, collection, text_splitter, embedding_functio
         return 0
 
     # 4. Parçaları Embedding'e Çevirme
-    with st.spinner("Dokümanlar işleniyor ve vektörlere çevriliyor..."):
-        # LangChain embeddings objesini kullanarak vektörleri manuel alıyoruz
-        embeddings = embedding_function.embed_documents(chunked_texts) 
+    try:
+        with st.spinner("Dokümanlar işleniyor ve vektörlere çevriliyor..."):
+            embeddings = embedding_function.embed_documents(chunked_texts) 
+    except Exception as e:
+        st.error(f"Embedding Hatası: Vektör oluşturulurken API'ye erişim sağlanamadı. Detay: {e}")
+        return 0
 
     # 5. Chroma'ya Kaydetme (Vektörleri de ekleyerek)
     ids = [f"doc_{i}" for i in range(len(chunked_texts))]
@@ -141,7 +148,6 @@ def ask_rag_assistant(question, gemini_client, collection, embedding_function):
         source_files = list(set([m['source'] for m in retrieved_metadatas]))
         final_answer = response.text
         
-        # Kaynak göstermeyi zorla
         if not any(source in final_answer for source in source_files):
              final_answer += f" [Kaynak: {', '.join(source_files)}]"
 
@@ -162,7 +168,7 @@ def main():
 
     st.title("🤖 AI Ethics & Compliance RAG Assistant")
     st.markdown("Yapay Zeka Etik ve Uyum Dokümanlarına Dayalı Soru-Cevap Asistanı")
-    st.caption("Proje Değerlendirme Notu: Bu uygulama, Colab'da yaşanan kütüphane/API çakışmalarını aşmak için LangChain ve Google API'leri arasında manuel RAG kurulumu kullanmaktadır.")
+    st.caption("Not: Bu uygulama, API hatalarını aşmak için manuel RAG kurulumu kullanmaktadır.")
 
     # RAG bileşenlerini yükle
     gemini_client, embedding_function, text_splitter, collection = setup_rag_components()
@@ -183,7 +189,8 @@ def main():
                 collection.delete(where={}) 
                 
                 chunk_count = index_documents(uploaded_files, collection, text_splitter, embedding_function)
-                st.success(f"Başarıyla {len(uploaded_files)} dosya işlendi ve {chunk_count} parça kaydedildi.")
+                if chunk_count > 0:
+                    st.success(f"Başarıyla {len(uploaded_files)} dosya işlendi ve {chunk_count} parça kaydedildi.")
             else:
                 st.warning("Lütfen işlem yapmak için bir PDF dosyası yükleyin.")
                 
@@ -192,7 +199,7 @@ def main():
 
     # --- Ana Chat Arayüzü ---
     if "messages" not in st.session_state:
-        st.session_state["messages"] = [{"role": "assistant", "content": "Merhaba! Yüklediğiniz AI Etik & Uyum dokümanları hakkında ne öğrenmek istersiniz?"}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "Merhaba! Lütfen sol panelden PDF'lerinizi yükleyip işleyin."}]
 
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
@@ -203,4 +210,14 @@ def main():
             st.chat_message("user").write(prompt)
             st.chat_message("assistant").write("HATA: Lütfen önce dokümanlarınızı yükleyin ve 'Dokümanları İşle ve Kaydet' butonuna basın.")
         else:
-            st
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.chat_message("user").write(prompt)
+            
+            with st.chat_message("assistant"):
+                with st.spinner("Asistanınız dokümanları analiz ediyor..."):
+                    response = ask_rag_assistant(prompt, gemini_client, collection, embedding_function)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.write(response)
+
+if __name__ == "__main__":
+    main()
