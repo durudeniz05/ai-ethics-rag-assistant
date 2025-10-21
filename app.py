@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (CHROMA DB SİLME HATASI GİDERİLDİ)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Kritik Hatalar Giderilmiş Nihai Sürüm)
 # =================================================================================
 
 import streamlit as st
@@ -56,7 +56,7 @@ def setup_rag_components():
     chroma_client = Client(Settings(allow_reset=True))
     collection_name = "ai_ethics_manual_collection"
     
-    # Collection'ı temizle ve yeniden oluştur (Hata oluşmaması için `get_or_create` yerine `delete_collection` kullanılır)
+    # Collection'ı temizle ve yeniden oluştur
     try:
         chroma_client.delete_collection(name=collection_name)
     except:
@@ -164,66 +164,3 @@ def ask_rag_assistant(question, gemini_client, collection, embedding_function):
 # =================================================================================
 
 def main():
-    st.set_page_config(page_title="AI Ethics & Compliance RAG Assistant", layout="wide")
-
-    st.title("🤖 AI Ethics & Compliance RAG Assistant")
-    st.markdown("Yapay Zeka Etik ve Uyum Dokümanlarına Dayalı Soru-Cevap Asistanı")
-    st.caption("Not: Bu uygulama, API hatalarını aşmak için manuel RAG kurulumu kullanmaktadır.")
-
-    # RAG bileşenlerini yükle
-    gemini_client, embedding_function, text_splitter, collection = setup_rag_components()
-
-    # --- Sol Panelde Dosya Yükleme ---
-    with st.sidebar:
-        st.header("1. Doküman Yükleme (PDF)")
-        
-        uploaded_files = st.file_uploader(
-            "AI Etik ve Uyum PDF'lerini yükleyin", 
-            type="pdf", 
-            accept_multiple_files=True
-        )
-
-        if st.button("Dokümanları İşle ve Kaydet"):
-            if uploaded_files:
-                # -----------------------------------------------------
-                # CHROMA SİLME HATASI DÜZELTİLMİŞTİR
-                # -----------------------------------------------------
-                collection.delete(where={
-                    "$and": [
-                        {"source": {"$ne": "non_existent_source"}}
-                    ]
-                }) 
-                
-                chunk_count = index_documents(uploaded_files, collection, text_splitter, embedding_function)
-                if chunk_count > 0:
-                    st.success(f"Başarıyla {len(uploaded_files)} dosya işlendi ve {chunk_count} parça kaydedildi.")
-            else:
-                st.warning("Lütfen işlem yapmak için bir PDF dosyası yükleyin.")
-                
-        # Mevcut Kayıt Sayısı
-        st.info(f"Vektör Veritabanında Kayıtlı Parça: {collection.count()}")
-
-    # --- Ana Chat Arayüzü ---
-    if "messages" not in st.session_state:
-        st.session_state["messages"] = [{"role": "assistant", "content": "Merhaba! Lütfen sol panelden PDF'lerinizi yükleyip işleyin."}]
-
-    for msg in st.session_state.messages:
-        st.chat_message(msg["role"]).write(msg["content"])
-
-    if prompt := st.chat_input("Örn: AB Yapay Zeka Yasası'nın yüksek risk tanımı nedir?"):
-        if collection.count() == 0:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            st.chat_message("user").write(prompt)
-            st.chat_message("assistant").write("HATA: Lütfen önce dokümanlarınızı yükleyin ve 'Dokümanları İşle ve Kaydet' butonuna basın.")
-        else:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            st.chat_message("user").write(prompt)
-            
-            with st.chat_message("assistant"):
-                with st.spinner("Asistanınız dokümanları analiz ediyor..."):
-                    response = ask_rag_assistant(prompt, gemini_client, collection, embedding_function)
-                    st.session_state.messages.append({"role": "assistant", "content": response})
-                    st.write(response)
-
-if __name__ == "__main__":
-    main()
