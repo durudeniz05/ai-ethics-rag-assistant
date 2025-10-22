@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - APIError için Geriye Dönük Uyumluluk Düzeltmesi)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - APIError ve Girinti Kontrollü)
 # =================================================================================
 
 import streamlit as st
@@ -15,14 +15,11 @@ import traceback # Hata takibi için
 # ===========================================
 try:
     import google.generativeai as genai
-    
-    # DÜZELTME: APIError'ı tekrar 'google.generativeai.errors' alt modülünden import etmeyi deniyoruz.
-    # Bu, paketinizin güncel olmayan bir versiyonu için gereklidir.
+    # Son denemeye göre eski versiyona uyumlu import
     from google.generativeai.errors import APIError 
     
     print("--- google.generativeai and APIError imported successfully ---")
 except ImportError as e: 
-    # Eğer bu hata alınırsa, 'google-genai' paketi ya eksiktir ya da çok yeni/eski bir versiyondur.
     st.error(f"Kritik Import Hatası: google.generativeai veya APIError yüklenemedi. {repr(e)}"); st.stop()
 except Exception as e: 
     st.error(f"Kritik Başlangıç Hatası (google import): {repr(e)}"); st.stop()
@@ -84,3 +81,80 @@ def setup_rag_components():
             print(f"!!! FAILED during ChromaDB initialization: {chroma_e} !!!")
             print(traceback.format_exc())
             st.error(f"ChromaDB başlatılamadı: {chroma_e}")
+            raise chroma_e # Re-raise
+            
+        # LLM Model
+        llm = genai.GenerativeModel('gemini-1.5-flash')
+
+        print("--- DEBUG: setup_rag_components BAŞARIYLA TAMAMLANDI (cache ile) ---")
+        return llm, embedding_function, text_splitter, collection
+
+    # --- End Main Try Block ---
+    except Exception as e:
+        print(f"!!! setup_rag_components içinde HATA (cache ile): {e} !!!")
+        print(traceback.format_exc()) 
+        st.error(f"Uygulama bileşenleri başlatılırken bir hata oluştu. Detaylar loglarda. Hata: {e}")
+        raise e
+
+# --- 3. Veri İşleme Fonksiyonu ---
+def index_documents(uploaded_files, collection, text_splitter, embedding_function):
+    """Yüklenen dosyaları işler ve Vektör Veritabanı'na kaydeder."""
+    chunked_texts, chunk_metadatas, processed_files_count = [], [], 0
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for uploaded_file in uploaded_files:
+            file_processed = False; temp_file_path = os.path.join(temp_dir, uploaded_file.name)
+            try:
+                with open(temp_file_path, "wb") as f: f.write(uploaded_file.getbuffer())
+                loader = PyPDFLoader(temp_file_path); documents = loader.load()
+                if not documents: st.warning(f"'{uploaded_file.name}' içerik okunamadı."); continue
+                chunks = text_splitter.split_documents(documents)
+                if not chunks: st.warning(f"'{uploaded_file.name}' parçalara ayrılamadı."); continue
+                for chunk in chunks:
+                    chunked_texts.append(chunk.page_content)
+                    metadata = {"source": uploaded_file.name}
+                    if hasattr(chunk, 'metadata') and 'page' in chunk.metadata: 
+                        metadata['page'] = chunk.metadata['page']
+                    chunk_metadatas.append(metadata)
+                file_processed = True
+            except Exception as e: st.error(f"'{uploaded_file.name}' işlenirken hata: {e}"); st.error(traceback.format_exc())
+            finally:
+                if file_processed: processed_files_count += 1
+                if os.path.exists(temp_file_path):
+                    try: os.remove(temp_file_path)
+                    except OSError as e: pass
+                    
+    if not chunked_texts: st.error("Yüklenen geçerli PDF dosyalarından metin çıkarılamadı."); return 0, 0
+    
+    try:
+        with st.spinner(f"{len(chunked_texts)} parça vektöre çevriliyor..."): 
+            embeddings = embedding_function.embed_documents(chunked_texts)
+    except Exception as e: st.error(f"Embedding Hatası: Vektör oluşturulamadı. Detay: {e}"); return processed_files_count, 0
+    
+    ids = [f"doc_{i}" for i in range(len(chunked_texts))]
+    
+    try:
+        with st.spinner("Vektör veritabanına ekleniyor..."): 
+            collection.add(documents=chunked_texts, embeddings=embeddings, metadatas=chunk_metadatas, ids=ids)
+        return processed_files_count, len(chunked_texts)
+    except Exception as e: 
+        st.error(f"Vektör DB ekleme hatası: {e}"); st.error(traceback.format_exc()); 
+        return processed_files_count, 0
+
+# --- 4. RAG Sorgulama Fonksiyonu ---
+def ask_rag_assistant(question, llm, collection, embedding_function):
+    """RAG sorgusunu çalıştırır ve cevabı döndürür."""
+    try:
+        # 1. Sorguyu vektöre çevir
+        with st.spinner("Sorunuz analiz ediliyor..."): 
+            query_vector = embedding_function.embed_query(question)
+            
+        # 2. Vektör veritabanında en yakın parçaları bul
+        with st.spinner("İlgili dokümanlar aranıyor..."): 
+            results = collection.query(query_embeddings=[query_vector], n_results=3, include=['metadatas', 'documents'])
+            
+        # Sonuç kontrolü
+        if not results or not results.get('ids') or not results['ids'][0]: 
+            return "Veritabanında sorunuzla ilgili bilgi bulunamadı."
+        
+        # 3. Bağlamı oluştur
+        retrieved_chunks = results['documents'][0];
