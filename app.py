@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM - Import ve Syntax düzeltmesi)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM - Import Debugging)
 # =================================================================================
 
 import streamlit as st
@@ -11,47 +11,26 @@ import tempfile
 import textwrap
 
 # RAG Bileşenleri
-import google.generativeai as genai
-from google.generativeai import APIError
-from chromadb import Client, Settings
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
-
-
-# --- 1. API Anahtarını ve Bileşenleri Hazırlama ---
-
-# API Anahtarını Streamlit Secrets'tan alıyoruz
+# ===========================================
+# IMPORT DEBUGGING BLOĞU
 try:
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except KeyError:
-    st.error("HATA: Streamlit Secrets'ta 'GEMINI_API_KEY' bulunamadı. Lütfen kontrol edin.")
-    st.stop()
+    import google.generativeai
+    print("--- google.generativeai başarıyla import edildi ---")
+    print(dir(google.generativeai)) # Modülün içindekileri yazdır
+    genai = google.generativeai # genai adını manuel olarak atayalım
+    # APIError'ı dinamik olarak bulmaya çalışalım (varsa)
+    # Önce .errors altında arayalım (standart konum)
+    APIError = getattr(genai.errors, 'APIError', None)
+    if APIError is None:
+        # Eğer orada yoksa, doğrudan genai altında arayalım (eski sürümler?)
+        APIError = getattr(genai, 'APIError', None)
 
+    if APIError is None:
+        print("!!! APIError sınıfı genai veya genai.errors altında bulunamadı !!!")
+        # Geçici olarak genel Exception kullanalım ki kod çalışsın
+        APIError = Exception
+    else:
+        print(f"--- APIError başarıyla bulundu: {APIError} ---")
 
-@st.cache_resource
-def setup_rag_components():
-    """Gemini Client, Embedding Modeli, Text Splitter ve Chroma Collection'ı hazırlar."""
-
-    # 1. API Bağlantılarını Hata Yakalama İçinde Başlatma
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-
-        # Embedding Modeli (Vektörleştirme)
-        embedding_model_name = "text-embedding-004"
-        embedding_function = GoogleGenerativeAIEmbeddings(
-            model=embedding_model_name,
-            google_api_key=GEMINI_API_KEY
-        ) # <-- SYNTAX HATASI BURADA DÜZELTİLDİ
-
-    except Exception as e:
-        st.error(f"KRİTİK HATA: Gemini API Bağlantı Sorunu. Anahtarınızı ve Streamlit Secrets'ı kontrol edin. Detay: {e}")
-        st.stop()
-
-    # 2. Metin Parçalayıcı
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-
-    # 3. Chroma Client (Vektör DB)
-    # Güncel chromadb sürümleri için Settings kullanımı değişmiş olabilir.
-    # Eğer hata alırsanız, client = chromadb.Client() veya persistent client
-
+except ImportError as e:
+    print(f"!!! google.generativeai import edilemedi: {e
