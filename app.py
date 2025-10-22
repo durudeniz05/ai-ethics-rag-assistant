@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (NİHAİ VE HATASIZ SÜRÜM)
 # =================================================================================
 
 import streamlit as st
