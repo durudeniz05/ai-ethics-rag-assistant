@@ -45,7 +45,7 @@ Proje, **Streamlit Cloud** platformuna deploy edilmiştir. Deploy linkiniz mutla
 * **Kullanım Kılavuzu:** Uygulama açıldığında, kullanıcılar sol paneldeki yükleme alanını kullanarak kendi PDF'lerini yükleyebilir ve **"Dokümanları İşle ve Kaydet"** butonuna basarak bilgi tabanını anlık olarak güncelleyebilir. Ardından, ana sohbet kutusuna sorularını yazabilirler.
 
 **WEB UYGULAMA LİNKİ:**
-https://ai-ethics-rag-assistant-zfudncteysk2gqcjepuzvy.streamlit.app/)
+https://ai-ethics-rag-assistant-mju5fysvtxyslhqjhplmrk.streamlit.app/
 
 ---
 
