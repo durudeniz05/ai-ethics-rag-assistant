@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - Final Syntax Fix 3)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - Final Structure Check)
 # =================================================================================
 
 import streamlit as st
@@ -16,57 +16,25 @@ import traceback # Hata takibi için
 try:
     import google.generativeai as genai
     from google.generativeai.errors import APIError # Corrected APIError import path
-    # print("--- google.generativeai and APIError imported successfully ---")
-except ImportError as e:
-    st.error(f"Kritik Import Hatası: google.generativeai veya APIError yüklenemedi. {repr(e)}")
-    st.stop()
-except Exception as e:
-    st.error(f"Kritik Başlangıç Hatası (google import): {repr(e)}")
-    st.stop()
+    print("--- google.generativeai and APIError imported successfully ---")
+except ImportError as e: st.error(f"Kritik Import Hatası: google.generativeai veya APIError yüklenemedi. {repr(e)}"); st.stop()
+except Exception as e: st.error(f"Kritik Başlangıç Hatası (google import): {repr(e)}"); st.stop()
 # ===========================================
 
-# Other imports (Corrected try-except structure)
-# ===========================================
-try: # Try block for chromadb
+# Other imports
+try:
     from chromadb import Client, Settings
     from chromadb.api.models.Collection import Collection
-    # print("--- chromadb imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import chromadb:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load chromadb. Details: {repr(e)}")
-    st.stop()
-
-try: # Try block for langchain_google_genai
+except ImportError as e: st.error(f"Kritik Import Hatası: chromadb yüklenemedi. {repr(e)}"); st.stop()
+try:
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
-    # print("--- langchain_google_genai imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import langchain_google_genai:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_google_genai. Details: {repr(e)}")
-    st.stop()
-
-try: # Try block for langchain_text_splitters
+except ImportError as e: st.error(f"Kritik Import Hatası: langchain_google_genai yüklenemedi. {repr(e)}"); st.stop()
+try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    # print("--- langchain_text_splitters imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import langchain_text_splitters:")
-    print(repr(e))
-    # ===========================================
-    # SYNTAX ERROR FIX HERE
-    st.error(f"Critical Import Error: Failed to load langchain_text_splitters. Details: {repr(e)}") # Added ')'
-    # ===========================================
-    st.stop()
-
-try: # Try block for langchain_community
+except ImportError as e: st.error(f"Kritik Import Hatası: langchain_text_splitters yüklenemedi. {repr(e)}"); st.stop()
+try:
     from langchain_community.document_loaders import PyPDFLoader
-    # print("--- langchain_community.document_loaders imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import langchain_community.document_loaders:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_community.document_loaders. Details: {repr(e)}")
-    st.stop()
-# ===========================================
+except ImportError as e: st.error(f"Kritik Import Hatası: langchain_community.document_loaders yüklenemedi. {repr(e)}"); st.stop()
 
 
 # --- 1. API Key ---
@@ -81,15 +49,24 @@ def setup_rag_components():
     """Tüm RAG bileşenlerini başlatır ve cache'ler."""
     print("--- DEBUG: setup_rag_components ÇALIŞTIRILIYOR (cache ile)... ---")
     llm, embedding_function, text_splitter, collection = None, None, None, None # Initialize
-    try: # Start main try block
+
+    # --- Start Main Try Block ---
+    try:
+        # Configure Gemini
         genai.configure(api_key=GEMINI_API_KEY)
+
+        # Embedding Model
         embedding_model_name = "models/text-embedding-004"
         embedding_function = GoogleGenerativeAIEmbeddings(
             model=embedding_model_name,
             google_api_key=GEMINI_API_KEY
         )
+
+        # Text Splitter
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+
         # ChromaDB (In-Memory)
+        # Nested try-except specifically for ChromaDB initialization
         try:
             import chromadb
             chroma_client = chromadb.Client()
@@ -101,16 +78,24 @@ def setup_rag_components():
             print(f"!!! FAILED during ChromaDB initialization: {chroma_e} !!!")
             print(traceback.format_exc())
             st.error(f"ChromaDB başlatılamadı: {chroma_e}")
-            raise chroma_e # Re-raise
+            raise chroma_e # Re-raise to be caught by the outer block if needed
+
+        # LLM Model
         llm = genai.GenerativeModel('gemini-1.5-flash')
+
         print("--- DEBUG: setup_rag_components BAŞARIYLA TAMAMLANDI (cache ile) ---")
         return llm, embedding_function, text_splitter, collection
-    # Aligned except block
+
+    # --- End Main Try Block ---
+    # ===========================================
+    # EXCEPT BLOCK ALIGNED WITH OUTER TRY (Handles errors from any step inside the try)
     except Exception as e:
         print(f"!!! setup_rag_components içinde HATA (cache ile): {e} !!!")
-        print(traceback.format_exc())
+        print(traceback.format_exc()) # Log the full error
         st.error(f"Uygulama bileşenleri başlatılırken bir hata oluştu. Detaylar loglarda. Hata: {e}")
+        # Re-raise the exception to ensure Streamlit stops cleanly via @st.cache_resource error handling
         raise e
+    # ===========================================
 
 # --- 3. Veri İşleme Fonksiyonu ---
 def index_documents(uploaded_files, collection, text_splitter, embedding_function):
@@ -218,4 +203,23 @@ def main():
 
         # Mevcut Kayıt Sayısı
         try:
-            doc_count
+            doc_count = collection.count()
+            st.info(f"Vektör Veritabanında Kayıtlı Parça: {doc_count}")
+        except Exception as e:
+             doc_count = 0; st.info(f"Vektör Veritabanında Kayıtlı Parça: {doc_count}")
+
+    # Chat Arayüzü
+    if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "Merhaba! Lütfen sol panelden PDF'lerinizi yükleyip işleyin."}]
+    for msg in st.session_state.messages: st.chat_message(msg["role"]).write(msg["content"])
+    if prompt := st.chat_input("Sorunuzu buraya yazın..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.chat_message("user").write(prompt)
+        try: current_doc_count = collection.count()
+        except Exception: current_doc_count = 0
+        if current_doc_count == 0: response = "Veritabanında işlenmiş doküman yok. Lütfen önce doküman yükleyin."; st.warning(response)
+        else:
+            with st.chat_message("assistant"): response = ask_rag_assistant(prompt, llm, collection, embedding_function); st.write(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
+
+if __name__ == "__main__":
+    main()
