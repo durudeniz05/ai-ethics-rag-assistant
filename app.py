@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import streamlit as st
-import google.generativeai as genai # <-- Sadece bu import eklendi
+import google.generativeai as genai
+import chromadb # <-- chromadb importu eklendi
 
-st.set_page_config(page_title="Import Test 1")
-st.title("Import Test: google.generativeai")
-st.write("Eğer bu yazıyı görüyorsanız, 'google.generativeai' importu sorunsuz.")
+st.set_page_config(page_title="Import Test 2")
+st.title("Import Test: chromadb")
+st.write("Eğer bu yazıyı görüyorsanız, 'chromadb' importu da sorunsuz.")
+st.write("(Önceki google.generativeai importu da çalışmıştı.)")
 
-print("--- google.generativeai import denendi ---")
+print("--- chromadb import denendi ---")
