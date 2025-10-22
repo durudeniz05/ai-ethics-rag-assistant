@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - Final Structure Check 2)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - Final Syntax Fix 3)
 # =================================================================================
 
 import streamlit as st
@@ -52,7 +52,10 @@ try: # Try block for langchain_text_splitters
 except ImportError as e: # Except block aligned with try
     print(f"!!! FAILED to import langchain_text_splitters:")
     print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_text_splitters. Details: {repr(e)}")
+    # ===========================================
+    # SYNTAX ERROR FIX HERE
+    st.error(f"Critical Import Error: Failed to load langchain_text_splitters. Details: {repr(e)}") # Added ')'
+    # ===========================================
     st.stop()
 
 try: # Try block for langchain_community
@@ -69,5 +72,4 @@ except ImportError as e: # Except block aligned with try
 # --- 1. API Key ---
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except KeyError: st.error("HATA: Streamlit Secrets'ta 'GEMINI_API_KEY' bulunamadı."); st.stop()
-except Exception as e: st.error(
+except KeyError: st.error("HATA: Streamlit Secrets'ta 'GEMINI_API_KEY' bulun
