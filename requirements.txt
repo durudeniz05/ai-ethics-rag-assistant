@@ -5,3 +5,4 @@ langchain-google-genai
 langchain-text-splitters
 langchain-community
 pypdf
+requests
