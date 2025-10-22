@@ -93,7 +93,7 @@ def setup_rag_components():
     except Exception as e:
         st.error(f"ChromaDB başlatılamadı: {e}"); st.stop()
 
-    llm = genai.GenerativeModel('gemini-1.5-flash')
+    llm = genai.GenerativeModel('gemini-2.5-flash')
     return llm, embedding_function, text_splitter, collection
 
 # --- 2. Veri İşleme ve Vektör Kaydetme Fonksiyonu ---
@@ -205,3 +205,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
