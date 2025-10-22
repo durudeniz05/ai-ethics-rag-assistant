@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Minimal Debug - Final SyntaxError Fix 7)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Minimal Debug - Embedding Test)
 # =================================================================================
 
 import streamlit as st
@@ -49,48 +49,15 @@ except Exception as e:
     st.stop()
 # ===========================================
 
-# Other imports (Corrected try-except structure)
-# ===========================================
-try:
-    from chromadb import Client, Settings
-    print("--- chromadb imported successfully ---")
-except ImportError as e:
-    print(f"!!! FAILED to import chromadb:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load chromadb. Details: {repr(e)}")
-    st.stop()
-
-try:
-    from langchain_google_genai import GoogleGenerativeAIEmbeddings
-    print("--- langchain_google_genai imported successfully ---")
-except ImportError as e:
-    print(f"!!! FAILED to import langchain_google_genai:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_google_genai. Details: {repr(e)}")
-    st.stop()
-
-try: # <-- Start try for langchain_text_splitters
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-    # ===========================================
-    # SYNTAX ERROR FIX HERE
-    print("--- langchain_text_splitters imported successfully ---") # Added ')'
-    # ===========================================
-# <-- End try, except must follow immediately and be aligned
-except ImportError as e:
-    print(f"!!! FAILED to import langchain_text_splitters:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_text_splitters. Details: {repr(e)}")
-    st.stop()
-
-try:
-    from langchain_community.document_loaders import PyPDFLoader
-    print("--- langchain_community.document_loaders imported successfully ---")
-except ImportError as e:
-    print(f"!!! FAILED to import langchain_community.document_loaders:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_community.document_loaders. Details: {repr(e)}")
-    st.stop()
-# ===========================================
+# Other imports
+try: from chromadb import Client, Settings; print("--- chromadb imported successfully ---")
+except ImportError as e: print(f"!!! FAILED to import chromadb:"); print(repr(e)); st.error(f"Critical Import Error: Failed to load chromadb. Details: {repr(e)}"); st.stop()
+try: from langchain_google_genai import GoogleGenerativeAIEmbeddings; print("--- langchain_google_genai imported successfully ---")
+except ImportError as e: print(f"!!! FAILED to import langchain_google_genai:"); print(repr(e)); st.error(f"Critical Import Error: Failed to load langchain_google_genai. Details: {repr(e)}"); st.stop()
+try: from langchain_text_splitters import RecursiveCharacterTextSplitter; print("--- langchain_text_splitters imported successfully ---")
+except ImportError as e: print(f"!!! FAILED to import langchain_text_splitters:"); print(repr(e)); st.error(f"Critical Import Error: Failed to load langchain_text_splitters. Details: {repr(e)}"); st.stop()
+try: from langchain_community.document_loaders import PyPDFLoader; print("--- langchain_community.document_loaders imported successfully ---")
+except ImportError as e: print(f"!!! FAILED to import langchain_community.document_loaders:"); print(repr(e)); st.error(f"Critical Import Error: Failed to load langchain_community.document_loaders. Details: {repr(e)}"); st.stop()
 
 
 # --- 1. API Key ---
@@ -101,21 +68,28 @@ try:
 except KeyError: print("!!! GEMINI_API_KEY not found in Secrets! ---"); st.error("Error: 'GEMINI_API_KEY' not found in Streamlit Secrets."); st.stop()
 except Exception as e: print(f"!!! Unexpected error reading Secrets: {e} !!!"); st.error(f"Error reading Secrets: {e}"); st.stop()
 
-# --- 2. Setup Components (Minimal Debug - Splitter Test) ---
+# --- 2. Setup Components (Embedding Test) ---
 # Cache disabled
 def setup_rag_components():
-    """(DEBUG) Configure ve Splitter test ediliyor."""
+    """(DEBUG) Configure, Splitter ve Embedding test ediliyor."""
     print("--- DEBUG: setup_rag_components START ---")
     llm, embedding_function, text_splitter, collection = None, None, None, None
-    try: # Start main try block
+    try:
         print("--- DEBUG: Calling genai.configure... ---")
         genai.configure(api_key=GEMINI_API_KEY)
         print("--- DEBUG: genai.configure OK. ---")
 
-        # --- Embedding DISABLED ---
-        embedding_function = "DEBUG: Embedding Disabled"
-        print("--- DEBUG: Embedding intentionally disabled ---")
-        # --- End Disabled ---
+        # ===========================================
+        # --- Embedding ENABLED ---
+        embedding_model_name = "models/text-embedding-004"
+        print(f"--- DEBUG: Creating GoogleGenerativeAIEmbeddings ({embedding_model_name})... ---")
+        embedding_function = GoogleGenerativeAIEmbeddings( # UNCOMMENTED
+            model=embedding_model_name,
+            google_api_key=GEMINI_API_KEY
+        )
+        print(f"--- DEBUG: GoogleGenerativeAIEmbeddings created: {embedding_function} ---")
+        # embedding_function = "DEBUG: Embedding Disabled" # REMOVED
+        # ===========================================
 
         # --- SPLITTER ENABLED ---
         print("--- DEBUG: Creating RecursiveCharacterTextSplitter... ---")
@@ -133,15 +107,14 @@ def setup_rag_components():
         print("--- DEBUG: LLM intentionally disabled ---")
         # --- End Disabled ---
 
-    # Aligned except block
     except Exception as e:
-        print(f"!!! Error during setup_rag_components (after configure, before return):")
+        print(f"!!! Error during setup_rag_components:")
         print(repr(e))
-        st.error(f"CRITICAL ERROR during component setup. Details: {repr(e)}")
+        st.error(f"CRITICAL ERROR during component setup (Embedding/Splitter?). Details: {repr(e)}")
         st.stop() # Stop if any setup step fails
 
-    print("--- DEBUG: setup_rag_components END (splitter active) ---")
-    return llm, embedding_function, text_splitter, collection
+    print("--- DEBUG: setup_rag_components END (embedding active) ---")
+    return llm, embedding_function, text_splitter, collection # Return actual embedding/splitter
 
 # --- Dummy Functions ---
 def index_documents(uploaded_files, collection, text_splitter, embedding_function): return 0,0
@@ -150,30 +123,31 @@ def ask_rag_assistant(question, llm, collection, embedding_function): return "DE
 # --- 3. Main App Logic ---
 def main():
     print("--- DEBUG: main() START ---")
-    st.set_page_config(page_title="Splitter Test Refined")
-    st.title("Setup Function Test: Splitter (Refined)")
-    st.write("If you see this, Secrets read, configure called, and Splitter init attempted.")
+    st.set_page_config(page_title="Embedding Test")
+    st.title("Setup Function Test: Embedding") # Title updated
+    st.write("If you see this, Secrets read, configure called, Splitter & Embedding init attempted.")
 
     llm, embedding_function, text_splitter, collection = None, None, None, None
     try:
-        print("--- DEBUG: Calling setup_rag_components (splitter test)... ---")
+        print("--- DEBUG: Calling setup_rag_components (embedding test)... ---")
         llm, embedding_function, text_splitter, collection = setup_rag_components()
-        print(f"--- DEBUG: Returned from setup_rag_components. Splitter type: {type(text_splitter)} ---")
+        print(f"--- DEBUG: Returned from setup_rag_components. Embedding type: {type(embedding_function)} ---")
     except Exception as e:
         print(f"!!! ERROR calling setup_rag_components from main: {e} !!!")
         st.error(f"Application failed to initialize during setup call: {e}")
         st.stop()
 
+    # --- Debug Check (Check if Embedding & Splitter are objects, others are string/None) ---
     st.success("DEBUG: Reached point after setup_rag_components call.")
     st.info(f"LLM Status: {llm} (Type: {type(llm)})")
     st.info(f"Embedding Status: {embedding_function} (Type: {type(embedding_function)})")
     st.info(f"Splitter Status: {text_splitter} (Type: {type(text_splitter)})")
     st.info(f"Collection Status: {collection} (Type: {type(collection)})")
 
-    if not isinstance(text_splitter, RecursiveCharacterTextSplitter):
-        st.error("Splitter did not initialize correctly!")
+    if not isinstance(embedding_function, GoogleGenerativeAIEmbeddings) or not isinstance(text_splitter, RecursiveCharacterTextSplitter):
+        st.error("Embedding or Splitter did not initialize correctly!")
     else:
-        st.success("Splitter seems OK. The issue might be later or intermittent.")
+        st.success("Embedding and Splitter seem OK. The issue might be later or intermittent.")
 
     st.info("Test finished. Next step depends on whether this screen loaded.")
 
