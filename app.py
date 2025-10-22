@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - Sadeleştirilmiş ve Girinti Kontrollü)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - APIError ve Girinti Kontrollü)
 # =================================================================================
 
 import streamlit as st
@@ -15,13 +15,15 @@ import traceback # Hata takibi için
 # ===========================================
 try:
     import google.generativeai as genai
-    # Eski versiyona uyumlu import (Sorun bu değilse, paketlerinizi güncellemeniz gerekebilir.)
-    from google.generativeai.errors import APIError 
+    # Güncel paketler için bu şekilde olmalı. Eğer hata verirse, 'requirements.txt' dosyanızı kontrol edin.
+    from google.generativeai import APIError 
     
     print("--- google.generativeai and APIError imported successfully ---")
 except ImportError as e: 
     st.error(f"Kritik Import Hatası: google.generativeai veya APIError yüklenemedi. {repr(e)}"); st.stop()
 except Exception as e: 
+    # Not: Eğer paket versiyonunuz eski ise, 'google-generativeai' altında 'APIError' direkt bulunamaz.
+    # O durumda, st.error ile APIError'ın nerede olduğunu belirten bir uyarı gösterebilirsiniz.
     st.error(f"Kritik Başlangıç Hatası (google import): {repr(e)}"); st.stop()
 # ===========================================
 
@@ -156,7 +158,7 @@ def ask_rag_assistant(question, llm, collection, embedding_function):
         if not results or not results.get('ids') or not results['ids'][0]: 
             return "Veritabanında sorunuzla ilgili bilgi bulunamadı."
         
-        # 3. Bağlamı oluştur (Noktalı virgül (;) kaldırıldı)
+        # 3. Bağlamı oluştur (Noktalı virgül kaldırıldı)
         retrieved_chunks = results['documents'][0]
         retrieved_metadatas = results['metadatas'][0]
         context = "\n---\n".join(retrieved_chunks)
