@@ -11,7 +11,6 @@ import tempfile
 import textwrap
 
 # RAG Bileşenleri
-from google import genai
 from google.genai.errors import APIError
 from chromadb import Client, Settings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -79,3 +78,4 @@ def index_documents(uploaded_files, collection, text_splitter, embedding_functio
     with tempfile.TemporaryDirectory() as temp_dir:
         for uploaded_file in uploaded_files:
             temp_file_path = os.path.join
+
