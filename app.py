@@ -70,3 +70,247 @@ def setup_rag_components():
 
         # ChromaDB (In-Memory)
         try:
+            import chromadb
+            # Varsayılan olarak in-memory client
+            chroma_client = chromadb.Client() 
+            collection_name = "ai_ethics_manual_collection"
+            try: chroma_client.delete_collection(name=collection_name)
+            except: pass # Collection yoksa hata vermesin
+            # Yeni veya mevcut koleksiyonu al/oluştur
+            collection = chroma_client.get_or_create_collection(name=collection_name)
+        except Exception as chroma_e:
+            print(f"!!! FAILED during ChromaDB initialization: {chroma_e} !!!")
+            print(traceback.format_exc())
+            st.error(f"ChromaDB başlatılamadı: {chroma_e}")
+            raise chroma_e # Re-raise
+
+        # LLM Model
+        llm = genai.GenerativeModel('gemini-1.5-flash')
+
+        print("--- DEBUG: setup_rag_components BAŞARIYLA TAMAMLANDI (cache ile) ---")
+        return llm, embedding_function, text_splitter, collection
+
+    # --- End Main Try Block ---
+    except Exception as e:
+        print(f"!!! setup_rag_components içinde HATA (cache ile): {e} !!!")
+        print(traceback.format_exc()) # Log the full error
+        st.error(f"Uygulama bileşenleri başlatılırken bir hata oluştu. Detaylar loglarda. Hata: {e}")
+        # Re-raise the exception to ensure Streamlit stops cleanly via @st.cache_resource error handling
+        raise e
+
+# --- 3. Veri İşleme Fonksiyonu ---
+def index_documents(uploaded_files, collection, text_splitter, embedding_function):
+    """Yüklenen dosyaları işler ve Vektör Veritabanı'na kaydeder."""
+    chunked_texts, chunk_metadatas, processed_files_count = [], [], 0
+    # Geçici dizin kullanarak yüklenen dosyaları kaydetme ve işleme
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for uploaded_file in uploaded_files:
+            file_processed = False; temp_file_path = os.path.join(temp_dir, uploaded_file.name)
+            try:
+                # Dosyayı geçici dizine kaydet
+                with open(temp_file_path, "wb") as f: f.write(uploaded_file.getbuffer())
+                
+                # PyPDFLoader ile dokümanı yükle
+                loader = PyPDFLoader(temp_file_path); documents = loader.load()
+                
+                if not documents: st.warning(f"'{uploaded_file.name}' içerik okunamadı."); continue
+                
+                # Dokümanları parçalara ayır
+                chunks = text_splitter.split_documents(documents)
+                
+                if not chunks: st.warning(f"'{uploaded_file.name}' parçalara ayrılamadı."); continue
+                
+                for chunk in chunks:
+                    chunked_texts.append(chunk.page_content)
+                    metadata = {"source": uploaded_file.name}
+                    # Sayfa numarasını metadata'dan al (page index'i 0'dan başlar)
+                    if hasattr(chunk, 'metadata') and 'page' in chunk.metadata: 
+                        metadata['page'] = chunk.metadata['page']
+                    chunk_metadatas.append(metadata)
+                
+                file_processed = True
+            except Exception as e: st.error(f"'{uploaded_file.name}' işlenirken hata: {e}"); st.error(traceback.format_exc())
+            finally:
+                if file_processed: processed_files_count += 1
+                # Geçici dosyayı temizle
+                if os.path.exists(temp_file_path):
+                    try: os.remove(temp_file_path)
+                    except OSError as e: pass
+                    
+    if not chunked_texts: st.error("Yüklenen geçerli PDF dosyalarından metin çıkarılamadı."); return 0, 0
+    
+    # Parçaları vektörlere çevir
+    try:
+        with st.spinner(f"{len(chunked_texts)} parça vektöre çevriliyor..."): 
+            embeddings = embedding_function.embed_documents(chunked_texts)
+    except Exception as e: st.error(f"Embedding Hatası: Vektör oluşturulamadı. Detay: {e}"); return processed_files_count, 0
+    
+    # ChromaDB'ye eklemek için ID'leri oluştur
+    ids = [f"doc_{i}" for i in range(len(chunked_texts))]
+    
+    # Vektörleri veritabanına ekle
+    try:
+        with st.spinner("Vektör veritabanına ekleniyor..."): 
+            collection.add(documents=chunked_texts, embeddings=embeddings, metadatas=chunk_metadatas, ids=ids)
+        return processed_files_count, len(chunked_texts)
+    except Exception as e: 
+        st.error(f"Vektör DB ekleme hatası: {e}"); st.error(traceback.format_exc()); 
+        return processed_files_count, 0
+
+# --- 4. RAG Sorgulama Fonksiyonu ---
+def ask_rag_assistant(question, llm, collection, embedding_function):
+    """RAG sorgusunu çalıştırır ve cevabı döndürür."""
+    # APIError'un scope'unu (kapsamını) genişletmeye gerek yok, zaten globalde import edildi.
+    # global APIError # Bu satır gereksiz.
+    try:
+        # 1. Sorguyu vektöre çevir
+        with st.spinner("Sorunuz analiz ediliyor..."): 
+            query_vector = embedding_function.embed_query(question)
+            
+        # 2. Vektör veritabanında en yakın parçaları bul
+        with st.spinner("İlgili dokümanlar aranıyor..."): 
+            results = collection.query(query_embeddings=[query_vector], n_results=3, include=['metadatas', 'documents'])
+            
+        # Sonuç kontrolü
+        if not results or not results.get('ids') or not results['ids'][0]: 
+            return "Veritabanında sorunuzla ilgili bilgi bulunamadı."
+        
+        # 3. Bağlamı oluştur
+        retrieved_chunks = results['documents'][0]; 
+        retrieved_metadatas = results['metadatas'][0]
+        context = "\n---\n".join(retrieved_chunks)
+        
+        # 4. Prompt'u oluştur ve LLM'e gönder
+        system_prompt = (
+            "Sen bir Yapay Zeka Etiği ve Uyum asistanısın. Yalnızca sağlanan bağlamdaki bilgilere dayanarak yanıtla. "
+            "Eğer bağlamda bilgi yoksa 'Elimdeki dokümanlarda bu konuyla ilgili spesifik bilgi bulunmamaktadır.' diye cevap ver. "
+            "Cevabını kısa ve öz tut. Cevabın sonunda, kullanılan kaynağı '[Kaynak: Dosya Adı, Sayfa X]' formatında belirt."
+        )
+        full_prompt = f"{system_prompt}\n\nBağlam:\n{context}\n\nSoru: {question}\n\nCevap:"
+        
+        with st.spinner("Cevap oluşturuluyor..."): 
+            response = llm.generate_content(full_prompt)
+        
+        # 5. Kaynak bilgisini hazırla
+        source_info = []
+        if retrieved_metadatas:
+            for meta in retrieved_metadatas:
+                if meta: 
+                    source, page = meta.get('source', '?'), meta.get('page', None)
+                    # Sayfa 0'dan başladığı için +1 eklenir
+                    source_info.append(f"{source}, Sayfa {page + 1}" if page is not None else source)
+        unique_source_info = sorted(list(set(source_info)))
+        
+        # 6. Cevabı al (Bloklanmış/Güvenlik Hatası durumunu ele al)
+        try: 
+            final_answer = response.text
+        except ValueError as e:
+             final_answer = f"Model uygun cevap üretemedi. Detay: {repr(e)}"
+             try:
+                 # Prompt Filtering (Güvenlik) nedenini ekle
+                 if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+                      final_answer += f" (Sebep: {response.prompt_feedback.block_reason.name if response.prompt_feedback.block_reason else 'Bilinmiyor'})"
+             except AttributeError: pass
+             
+        # 7. Kaynağı cevaba ekle (Eğer cevapta kaynak zaten geçmiyorsa)
+        # Basit bir kontrol: Kaynak dosya adının cevapta geçip geçmediğini kontrol et.
+        if unique_source_info and not any(src.split(',')[0] in final_answer for src in unique_source_info): 
+            final_answer += f" [Kaynak: {'; '.join(unique_source_info)}]"
+        
+        return final_answer
+        
+    except APIError as e: 
+        return f"API HATA: Gemini servisine erişim sağlanamadı. Detay: {repr(e)}"
+    except Exception as e: 
+        st.error(f"RAG Sorgulama Hatası: {e}"); st.error(traceback.format_exc()); 
+        return f"GENEL HATA: RAG sorgusu işlenirken bir sorun oluştu."
+
+# =================================================================================
+# 5. STREAMLIT ANA FONKSİYON
+# =================================================================================
+
+def main():
+    st.set_page_config(page_title="AI Ethics RAG Assistant", layout="wide")
+    st.title("🤖 AI Ethics & Compliance RAG Assistant")
+    st.markdown("Yapay Zeka Etik ve Uyum Dokümanlarına Dayalı Soru-Cevap Asistanı")
+    st.caption("Not: Bu uygulama Google Gemini ve ChromaDB kullanmaktadır.")
+
+    # Bileşenleri yükle (Cache ile)
+    try:
+        llm, embedding_function, text_splitter, collection = setup_rag_components()
+    except Exception as e:
+        st.stop() # Error already shown/logged in setup_rag_components
+
+    # Bileşenlerin başarıyla yüklenip yüklenmediğini kontrol et
+    if not llm or not embedding_function or not text_splitter or not collection:
+          st.error("Bileşenlerden biri veya birkaçı yüklenemedi. Lütfen logları ve API key ayarlarını kontrol edin.")
+          st.stop()
+
+    # Sidebar
+    with st.sidebar:
+        st.header("1. Doküman Yükleme (PDF)")
+        # Dosya yükleyici
+        uploaded_files = st.file_uploader("AI Etik ve Uyum PDF'lerini yükleyin", type="pdf", accept_multiple_files=True, key="file_uploader")
+
+        # İşle ve Kaydet butonu
+        if st.button("Dokümanları İşle ve Kaydet"):
+            if uploaded_files:
+                try:
+                    # Mevcut veritabanını temizle (In-memory olduğu için yeniden başlatıldığında zaten sıfırlanır, ama butona basılınca silmek iyi bir pratik)
+                    existing_ids = collection.get(include=[])['ids']
+                    if existing_ids: collection.delete(ids=existing_ids); st.info("Mevcut veritabanı temizlendi.")
+                except Exception as e: pass
+                
+                # Dokümanları işleme ve kaydetme
+                processed_count, chunk_count = index_documents(uploaded_files, collection, text_splitter, embedding_function)
+                
+                if chunk_count > 0:
+                    st.success(f"Başarıyla {processed_count}/{len(uploaded_files)} dosya işlendi ve {chunk_count} parça kaydedildi.")
+                
+                # Sayfanın yenilenmesini tetikler (Sidebar'daki count bilgisinin güncellenmesi için)
+                st.rerun() 
+            else:
+                st.warning("Lütfen işlem yapmak için bir PDF dosyası yükleyin.")
+
+        # Mevcut Kayıt Sayısı
+        try:
+            doc_count = collection.count()
+            st.info(f"Vektör Veritabanında Kayıtlı Parça: {doc_count}")
+        except Exception as e:
+            # Hata durumunda (örneğin collection bulunamazsa, ki cache sayesinde zor)
+            doc_count = 0; st.info(f"Vektör Veritabanında Kayıtlı Parça: {doc_count}")
+
+    # Chat Arayüzü
+    # Chat geçmişini session state'te tut
+    if "messages" not in st.session_state: 
+        st.session_state.messages = [{"role": "assistant", "content": "Merhaba! Lütfen sol panelden PDF'lerinizi yükleyip işleyin ve sohbeti başlatın."}]
+    
+    # Geçmiş mesajları göster
+    for msg in st.session_state.messages: 
+        st.chat_message(msg["role"]).write(msg["content"])
+        
+    # Kullanıcıdan girdi al
+    if prompt := st.chat_input("Sorunuzu buraya yazın..."):
+        # Kullanıcı mesajını ekle
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.chat_message("user").write(prompt)
+        
+        # Veritabanı kontrolü
+        try: current_doc_count = collection.count()
+        except Exception: current_doc_count = 0
+        
+        # RAG sorgusunu çalıştır veya uyarı ver
+        if current_doc_count == 0: 
+            response = "Veritabanında işlenmiş doküman yok. Lütfen önce doküman yükleyin ve 'Dokümanları İşle ve Kaydet' butonuna basın."
+            st.chat_message("assistant").warning(response) # Uyarı mesajını chat'te göster
+        else:
+            with st.chat_message("assistant"): 
+                response = ask_rag_assistant(prompt, llm, collection, embedding_function)
+                st.write(response)
+                
+        # Asistanın cevabını geçmişe ekle
+        st.session_state.messages.append({"role": "assistant", "content": response})
+
+# Python dosyasını direkt çalıştırdığımızda main() fonksiyonunun çalışmasını sağla
+if __name__ == "__main__":
+    main()
