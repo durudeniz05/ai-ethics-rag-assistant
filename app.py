@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM - Minimal Setup Debug)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM - Final Parenthesis Fix)
 # =================================================================================
 
 import streamlit as st
@@ -13,7 +13,7 @@ import traceback # Import traceback at the top
 
 # RAG Bileşenleri
 # ===========================================
-# IMPORT DEBUGGING BLOĞU
+# IMPORT DEBUGGING BLOĞU (Parenthesis fix included)
 try:
     import google.generativeai
     print("--- google.generativeai başarıyla import edildi ---")
@@ -29,7 +29,7 @@ try:
 
     if APIError_class is None:
         print("!!! APIError sınıfı genai veya genai.errors altında bulunamadı !!!")
-        APIError = Exception # Fallback
+        APIError = Exception
     else:
         APIError = APIError_class
         print(f"--- APIError başarıyla atandı: {APIError} ---")
@@ -40,8 +40,11 @@ except ImportError as e:
     st.error(f"Kritik Import Hatası: google.generativeai yüklenemedi. Detay: {repr(e)}")
     st.stop()
 except AttributeError as e:
-    print(f"!!! genai.errors bulunamadı veya APIError aranırken hata: {e} !!!")
+    # ===========================================
+    # PARENTHESIS FIX HERE
+    print(f"!!! genai.errors bulunamadı veya APIError aranırken hata: {e} !!!") # Added missing ')'
+    # ===========================================
     APIError = Exception
     print("--- APIError için genel Exception kullanılacak ---")
 except Exception as e:
-    print(f
+    print(f"!!! Import sırasında
