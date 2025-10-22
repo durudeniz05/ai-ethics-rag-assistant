@@ -99,7 +99,6 @@ def index_documents(uploaded_files, collection, text_splitter, embedding_functio
         with st.spinner("Dokümanlar işleniyor ve vektörlere çevriliyor..."):
             embeddings = embedding_function.embed_documents(chunked_texts) 
     except Exception as e:
-        # Hata Mesajı Kontrol Edildi
         st.error(f"Embedding Hatası: Vektör oluşturulurken API'ye erişim sağlanamadı. Detay: {e}")
         return 0
 
@@ -220,4 +219,11 @@ def main():
             st.session_state.messages.append({"role": "user", "content": prompt})
             st.chat_message("user").write(prompt)
             
-            with st.chat_
+            with st.chat_message("assistant"):
+                with st.spinner("Asistanınız dokümanları analiz ediyor..."):
+                    response = ask_rag_assistant(prompt, gemini_client, collection, embedding_function)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.write(response)
+
+if __name__ == "__main__":
+    main()
