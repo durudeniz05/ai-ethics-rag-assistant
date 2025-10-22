@@ -12,7 +12,7 @@ import textwrap
 
 # RAG Bileşenleri
 import google.generativeai as genai
-from google.generativeai.errors import APIError
+from google.generativeai import APIError
 from chromadb import Client, Settings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -54,3 +54,4 @@ def setup_rag_components():
     # 3. Chroma Client (Vektör DB)
     # Güncel chromadb sürümleri için Settings kullanımı değişmiş olabilir.
     # Eğer hata alırsanız, client = chromadb.Client() veya persistent client
+
