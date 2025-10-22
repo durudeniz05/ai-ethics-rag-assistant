@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Minimal Debug - Embedding Test)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Minimal Debug - LLM Test)
 # =================================================================================
 
 import streamlit as st
@@ -68,10 +68,10 @@ try:
 except KeyError: print("!!! GEMINI_API_KEY not found in Secrets! ---"); st.error("Error: 'GEMINI_API_KEY' not found in Streamlit Secrets."); st.stop()
 except Exception as e: print(f"!!! Unexpected error reading Secrets: {e} !!!"); st.error(f"Error reading Secrets: {e}"); st.stop()
 
-# --- 2. Setup Components (Embedding Test) ---
+# --- 2. Setup Components (LLM Test) ---
 # Cache disabled
 def setup_rag_components():
-    """(DEBUG) Configure, Splitter ve Embedding test ediliyor."""
+    """(DEBUG) Configure, Splitter, Embedding ve LLM test ediliyor."""
     print("--- DEBUG: setup_rag_components START ---")
     llm, embedding_function, text_splitter, collection = None, None, None, None
     try:
@@ -79,17 +79,15 @@ def setup_rag_components():
         genai.configure(api_key=GEMINI_API_KEY)
         print("--- DEBUG: genai.configure OK. ---")
 
-        # ===========================================
         # --- Embedding ENABLED ---
         embedding_model_name = "models/text-embedding-004"
         print(f"--- DEBUG: Creating GoogleGenerativeAIEmbeddings ({embedding_model_name})... ---")
-        embedding_function = GoogleGenerativeAIEmbeddings( # UNCOMMENTED
+        embedding_function = GoogleGenerativeAIEmbeddings(
             model=embedding_model_name,
             google_api_key=GEMINI_API_KEY
         )
         print(f"--- DEBUG: GoogleGenerativeAIEmbeddings created: {embedding_function} ---")
-        # embedding_function = "DEBUG: Embedding Disabled" # REMOVED
-        # ===========================================
+        # --- End Enabled ---
 
         # --- SPLITTER ENABLED ---
         print("--- DEBUG: Creating RecursiveCharacterTextSplitter... ---")
@@ -102,19 +100,22 @@ def setup_rag_components():
         print("--- DEBUG: ChromaDB intentionally None ---")
         # --- End Disabled ---
 
-        # --- LLM DISABLED ---
-        llm = "DEBUG: LLM Disabled"
-        print("--- DEBUG: LLM intentionally disabled ---")
-        # --- End Disabled ---
+        # ===========================================
+        # --- LLM ENABLED ---
+        print("--- DEBUG: Creating genai.GenerativeModel... ---")
+        llm = genai.GenerativeModel('gemini-1.5-flash') # UNCOMMENTED
+        print(f"--- DEBUG: genai.GenerativeModel created: {llm} ---")
+        # llm = "DEBUG: LLM Disabled" # REMOVED
+        # ===========================================
 
     except Exception as e:
         print(f"!!! Error during setup_rag_components:")
         print(repr(e))
-        st.error(f"CRITICAL ERROR during component setup (Embedding/Splitter?). Details: {repr(e)}")
+        st.error(f"CRITICAL ERROR during component setup (Embedding/Splitter/LLM?). Details: {repr(e)}")
         st.stop() # Stop if any setup step fails
 
-    print("--- DEBUG: setup_rag_components END (embedding active) ---")
-    return llm, embedding_function, text_splitter, collection # Return actual embedding/splitter
+    print("--- DEBUG: setup_rag_components END (LLM active) ---")
+    return llm, embedding_function, text_splitter, collection # Return actual LLM/embedding/splitter
 
 # --- Dummy Functions ---
 def index_documents(uploaded_files, collection, text_splitter, embedding_function): return 0,0
@@ -123,31 +124,36 @@ def ask_rag_assistant(question, llm, collection, embedding_function): return "DE
 # --- 3. Main App Logic ---
 def main():
     print("--- DEBUG: main() START ---")
-    st.set_page_config(page_title="Embedding Test")
-    st.title("Setup Function Test: Embedding") # Title updated
-    st.write("If you see this, Secrets read, configure called, Splitter & Embedding init attempted.")
+    st.set_page_config(page_title="LLM Test")
+    st.title("Setup Function Test: LLM") # Title updated
+    st.write("If you see this, Secrets read, configure called, Splitter, Embedding & LLM init attempted.")
 
     llm, embedding_function, text_splitter, collection = None, None, None, None
     try:
-        print("--- DEBUG: Calling setup_rag_components (embedding test)... ---")
+        print("--- DEBUG: Calling setup_rag_components (LLM test)... ---")
         llm, embedding_function, text_splitter, collection = setup_rag_components()
-        print(f"--- DEBUG: Returned from setup_rag_components. Embedding type: {type(embedding_function)} ---")
+        print(f"--- DEBUG: Returned from setup_rag_components. LLM type: {type(llm)} ---")
     except Exception as e:
         print(f"!!! ERROR calling setup_rag_components from main: {e} !!!")
         st.error(f"Application failed to initialize during setup call: {e}")
         st.stop()
 
-    # --- Debug Check (Check if Embedding & Splitter are objects, others are string/None) ---
+    # --- Debug Check (Check if LLM, Embedding & Splitter are objects, collection is None) ---
     st.success("DEBUG: Reached point after setup_rag_components call.")
     st.info(f"LLM Status: {llm} (Type: {type(llm)})")
     st.info(f"Embedding Status: {embedding_function} (Type: {type(embedding_function)})")
     st.info(f"Splitter Status: {text_splitter} (Type: {type(text_splitter)})")
     st.info(f"Collection Status: {collection} (Type: {type(collection)})")
 
-    if not isinstance(embedding_function, GoogleGenerativeAIEmbeddings) or not isinstance(text_splitter, RecursiveCharacterTextSplitter):
-        st.error("Embedding or Splitter did not initialize correctly!")
+    # Check types more carefully
+    llm_ok = hasattr(llm, 'generate_content') # Check if it looks like a GenerativeModel object
+    embedding_ok = isinstance(embedding_function, GoogleGenerativeAIEmbeddings)
+    splitter_ok = isinstance(text_splitter, RecursiveCharacterTextSplitter)
+
+    if not llm_ok or not embedding_ok or not splitter_ok:
+        st.error("One or more components (LLM, Embedding, Splitter) did not initialize correctly!")
     else:
-        st.success("Embedding and Splitter seem OK. The issue might be later or intermittent.")
+        st.success("LLM, Embedding, and Splitter seem OK. The issue might be ChromaDB or Cache.")
 
     st.info("Test finished. Next step depends on whether this screen loaded.")
 
