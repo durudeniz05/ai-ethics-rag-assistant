@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - Final Syntax Fix 3)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Final Sürüm - Final Syntax Fix 4)
 # =================================================================================
 
 import streamlit as st
@@ -25,51 +25,34 @@ except Exception as e:
     st.stop()
 # ===========================================
 
-# Other imports (Corrected try-except structure)
-# ===========================================
-try: # Try block for chromadb
+# Other imports
+try:
     from chromadb import Client, Settings
     from chromadb.api.models.Collection import Collection
-    # print("--- chromadb imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import chromadb:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load chromadb. Details: {repr(e)}")
-    st.stop()
-
-try: # Try block for langchain_google_genai
+except ImportError as e: st.error(f"Kritik Import Hatası: chromadb yüklenemedi. {repr(e)}"); st.stop()
+try:
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
-    # print("--- langchain_google_genai imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import langchain_google_genai:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_google_genai. Details: {repr(e)}")
-    st.stop()
-
-try: # Try block for langchain_text_splitters
+except ImportError as e: st.error(f"Kritik Import Hatası: langchain_google_genai yüklenemedi. {repr(e)}"); st.stop()
+try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    # print("--- langchain_text_splitters imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import langchain_text_splitters:")
-    print(repr(e))
-    # ===========================================
-    # SYNTAX ERROR FIX HERE
-    st.error(f"Critical Import Error: Failed to load langchain_text_splitters. Details: {repr(e)}") # Added ')'
-    # ===========================================
-    st.stop()
-
-try: # Try block for langchain_community
+except ImportError as e: st.error(f"Kritik Import Hatası: langchain_text_splitters yüklenemedi. {repr(e)}"); st.stop()
+try:
     from langchain_community.document_loaders import PyPDFLoader
-    # print("--- langchain_community.document_loaders imported successfully ---")
-except ImportError as e: # Except block aligned with try
-    print(f"!!! FAILED to import langchain_community.document_loaders:")
-    print(repr(e))
-    st.error(f"Critical Import Error: Failed to load langchain_community.document_loaders. Details: {repr(e)}")
-    st.stop()
-# ===========================================
+except ImportError as e: st.error(f"Kritik Import Hatası: langchain_community.document_loaders yüklenemedi. {repr(e)}"); st.stop()
 
 
 # --- 1. API Key ---
 try:
+    print("--- DEBUG: Reading Secrets... ---")
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except KeyError: st.error("HATA: Streamlit Secrets'ta 'GEMINI_API_KEY' bulun
+    print("--- DEBUG: Secrets Read OK. ---")
+# ===========================================
+# SYNTAX ERROR FIX HERE
+except KeyError:
+    print("!!! GEMINI_API_KEY not found in Secrets! ---")
+    st.error("HATA: Streamlit Secrets'ta 'GEMINI_API_KEY' bulunamadı.") # Corrected string
+    st.stop()
+# ===========================================
+except Exception as e:
+    print(f"!!! Unexpected error reading Secrets: {e} !!!")
+    st.error(f"Secrets okunurken HATA: {repr(e)}") # Use repr(
