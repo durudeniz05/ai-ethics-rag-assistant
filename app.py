@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM - Cache Debugging)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (SON VE HATASIZ SÜRÜM - Final SyntaxError Fix 2)
 # =================================================================================
 
 import streamlit as st
@@ -29,7 +29,7 @@ try:
 
     if APIError_class is None:
         print("!!! APIError sınıfı genai veya genai.errors altında bulunamadı !!!")
-        APIError = Exception # Fallback
+        APIError = Exception
     else:
         APIError = APIError_class
         print(f"--- APIError başarıyla atandı: {APIError} ---")
@@ -54,30 +54,25 @@ except Exception as e:
 try:
     from chromadb import Client, Settings
     print("--- chromadb başarıyla import edildi ---")
-except ImportError as e:
-    print(f"!!! chromadb import edilemedi: {e} !!!")
-    st.error(f"Kritik Import Hatası: chromadb yüklenemedi. {e}")
-    st.stop()
-
+except ImportError as e: print(f"!!! chromadb import edilemedi: {e} !!!"); st.error(f"Kritik Import Hatası: chromadb yüklenemedi. {e}"); st.stop()
 try:
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
     print("--- langchain_google_genai başarıyla import edildi ---")
-except ImportError as e:
-    print(f"!!! langchain_google_genai import edilemedi: {e} !!!")
-    st.error(f"Kritik Import Hatası: langchain_google_genai yüklenemedi. {e}")
-    st.stop()
-
+except ImportError as e: print(f"!!! langchain_google_genai import edilemedi: {e} !!!"); st.error(f"Kritik Import Hatası: langchain_google_genai yüklenemedi. {e}"); st.stop()
 try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     print("--- langchain_text_splitters başarıyla import edildi ---")
-except ImportError as e:
-    print(f"!!! langchain_text_splitters import edilemedi: {e} !!!")
-    st.error(f"Kritik Import Hatası: langchain_text_splitters yüklenemedi. {e}")
-    st.stop()
-
+except ImportError as e: print(f"!!! langchain_text_splitters import edilemedi: {e} !!!"); st.error(f"Kritik Import Hatası: langchain_text_splitters yüklenemedi. {e}"); st.stop()
 try:
     from langchain_community.document_loaders import PyPDFLoader
     print("--- langchain_community.document_loaders başarıyla import edildi ---")
-except ImportError as e:
-    print(f"!!! langchain_community.document_loaders import edilemedi: {e} !!!")
-    st.error(f"Krit
+except ImportError as e: print(f"!!! langchain_community.document_loaders import edilemedi: {e} !!!"); st.error(f"Kritik Import Hatası: langchain_community.document_loaders yüklenemedi. {e}"); st.stop()
+
+
+# --- 1. API Anahtarını ve Bileşenleri Hazırlama ---
+try:
+    print("--- DEBUG: Secrets okunuyor... ---")
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    print("--- DEBUG: Secrets okundu. ---")
+except KeyError: print("!!! Secrets içinde GEMINI_API_KEY bulunamadı! ---"); st.error("HATA: Streamlit Secrets'ta 'GEMINI_API_KEY' bulunamadı."); st.stop()
+except Exception as e: print(f"!!! Secrets okunurken beklenmedik hata: {e} !!!"); st.error(f"Secrets okunurken HATA: {e}"); st.stop
