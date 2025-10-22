@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # =================================================================================
-# 5. ADIM: STREAMLIT WEB UYGULAMASI (Minimal Debug - Splitter Test Syntax Fix)
+# 5. ADIM: STREAMLIT WEB UYGULAMASI (Minimal Debug - Final Import Syntax Fix)
 # =================================================================================
 
 import streamlit as st
@@ -49,7 +49,27 @@ except Exception as e:
     st.stop()
 # ===========================================
 
-# Other imports
-try: from chromadb import Client, Settings; print("--- chromadb imported successfully ---")
-except ImportError as e: print(f"!!! FAILED to import chromadb:"); print(repr(e)); st.error(f"Critical Import Error: Failed to load chromadb. Details: {repr(e)}"); st.stop()
-try: from langchain_google_genai import GoogleGenerativeAIEmbeddings; print("--- langchain_google_genai imported successfully ---")
+# Other imports (Corrected try-except structure)
+# ===========================================
+try:
+    from chromadb import Client, Settings
+    print("--- chromadb imported successfully ---")
+except ImportError as e:
+    print(f"!!! FAILED to import chromadb:")
+    print(repr(e))
+    st.error(f"Critical Import Error: Failed to load chromadb. Details: {repr(e)}")
+    st.stop()
+
+try: # <-- Start try for langchain_google_genai
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+    print("--- langchain_google_genai imported successfully ---")
+# <-- End try, except must follow immediately and be aligned
+except ImportError as e:
+    print(f"!!! FAILED to import langchain_google_genai:")
+    print(repr(e))
+    st.error(f"Critical Import Error: Failed to load langchain_google_genai. Details: {repr(e)}")
+    st.stop()
+
+try:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    print("--- langchain_text_splitters imported successfully ---
